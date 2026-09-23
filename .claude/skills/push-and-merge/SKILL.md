@@ -1,11 +1,11 @@
 ---
 name: push-and-merge
-description: Ship the current changes - branch, commit, push, open a PR against master, and merge it. Use when the user says they're ready to push to GitHub, wants to ship/publish their changes, or asks to create a PR and merge it into master.
+description: Ship the current changes - branch, commit, push, and open a PR against master. Use when the user says they're ready to push to GitHub, wants to ship/publish their changes, or asks to create a PR. Does NOT merge the PR - that step is manual, done by the user on GitHub.
 ---
 
 # Push and Merge
 
-Takes the working tree from "changes are ready" to "merged into master" in one pass: branch, commit, push, PR, merge, cleanup. This repo's default flow is one PR per unit of work, merged immediately (no long review wait) rather than left open.
+Takes the working tree from "changes are ready" to "PR open against master" in one pass: branch, commit, push, PR. This repo's default flow is one PR per unit of work. Merging is **not** automatic: the skill stops once the PR is open and the user merges it themselves on GitHub.
 
 ## Steps
 
@@ -48,15 +48,11 @@ gh pr create --base master --head <branch> --title "<short, specific>" --body "<
 
 Body should have a `## Summary` (bullets of what changed and why) and a `## Test plan` (the checks from step 1, marked done). End with the PR attribution line from this session's system reminder, if one is set.
 
-### 6. Merge
+### 6. Stop and hand off
 
-```
-gh pr merge <number> --merge --delete-branch
-```
-
-Then `git fetch --prune` and confirm `git status` shows a clean `master` up to date with `origin/master`.
+Do not merge the PR. Tell the user the PR is open (include the URL `gh pr create` printed) and that they need to go to GitHub and merge it manually themselves.
 
 ## Notes
 
-- This is a one-person-repo, fast-merge workflow - it does not wait for review or CI before merging. If that ever changes (a real reviewer, required CI checks), don't merge automatically; open the PR and stop, telling the user it's ready for review.
-- Never force-push, never skip the step-1 checks, never merge a PR whose checks are failing.
+- Merging is always a manual, user-driven step on GitHub - never run `gh pr merge` or otherwise merge/close the PR yourself, even if asked to "ship it" or "finish it up." If the user wants it merged, tell them to do it on GitHub.
+- Never force-push, never skip the step-1 checks.
