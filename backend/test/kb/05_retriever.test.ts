@@ -60,9 +60,9 @@ describe("retrieveChunks", () => {
     });
     const store = fakeVectorStore([[doc, 0.87]]);
 
-    const results = await retrieveChunks("acme", "accidental damage", {}, store);
+    const { chunks } = await retrieveChunks("acme", "accidental damage", {}, store);
 
-    expect(results).toEqual([
+    expect(chunks).toEqual([
       {
         text: "Accidental damage is covered up to $5,000.",
         score: 0.87,
@@ -87,14 +87,53 @@ describe("retrieveChunks", () => {
       [weakDoc, 0.3],
     ]);
 
-    const results = await retrieveChunks(
+    const { chunks } = await retrieveChunks(
       "acme",
       "query",
       { scoreThreshold: 0.5 },
       store,
     );
 
-    expect(results).toHaveLength(1);
-    expect(results[0].text).toBe("relevant");
+    expect(chunks).toHaveLength(1);
+    expect(chunks[0].text).toBe("relevant");
+  });
+
+  it("reports confidence as the best raw score, clamped to [0,1] and rounded", async () => {
+    const doc = new Document({
+      pageContent: "relevant",
+      metadata: { source: "policy.pdf", chunkId: 0 },
+    });
+    const store = fakeVectorStore([[doc, 1.234]]);
+
+    const { confidence } = await retrieveChunks("acme", "query", {}, store);
+
+    expect(confidence).toBe(1);
+  });
+
+  it("keeps confidence based on the best match even when it gets pruned by scoreThreshold", async () => {
+    const doc = new Document({
+      pageContent: "weak match",
+      metadata: { source: "policy.pdf", chunkId: 0 },
+    });
+    const store = fakeVectorStore([[doc, 0.42]]);
+
+    const { chunks, confidence } = await retrieveChunks(
+      "acme",
+      "query",
+      { scoreThreshold: 0.9 },
+      store,
+    );
+
+    expect(chunks).toHaveLength(0);
+    expect(confidence).toBe(0.42);
+  });
+
+  it("returns zero confidence when there are no matches", async () => {
+    const store = fakeVectorStore([]);
+
+    const { chunks, confidence } = await retrieveChunks("acme", "query", {}, store);
+
+    expect(chunks).toHaveLength(0);
+    expect(confidence).toBe(0);
   });
 });
