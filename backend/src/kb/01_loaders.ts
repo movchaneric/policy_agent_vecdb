@@ -54,17 +54,17 @@ export async function loadFileAsDocuments(
 ): Promise<Document[]> {
   const { filePath, mimeType, originalName } = args;
 
-  const extractFileExtenstion = getExtension(originalName); // pdf, txt, md, etc
+  const fileExtension = getExtension(originalName); // pdf, txt, md, etc
 
   const isMarkdown =
     mimeType === "text/markdown" ||
-    extractFileExtenstion === "md" ||
-    extractFileExtenstion === "markdown";
+    fileExtension === "md" ||
+    fileExtension === "markdown";
 
-  const isText = mimeType === "text/plain" || extractFileExtenstion === "txt";
+  const isText = mimeType === "text/plain" || fileExtension === "txt";
 
   const isPDF =
-    mimeType === "application/pdf" || extractFileExtenstion === "pdf";
+    mimeType === "application/pdf" || fileExtension === "pdf";
 
   if (isMarkdown || isText) {
     // TextLoader takes a file path and handles reading + wrapping it as a Document internally
