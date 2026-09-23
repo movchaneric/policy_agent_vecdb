@@ -4,8 +4,10 @@ import { readFile, stat } from "fs/promises";
 import { Document } from "@langchain/core/documents";
 // TextLoader: LangChain's built-in loader for plain-text files (reads the file and wraps it in a Document)
 import { TextLoader } from "@langchain/classic/document_loaders/fs/text";
-// PDFParse: parses a PDF buffer and extracts text per page
-import { PDFParse } from "pdf-parse";
+// LiteParse: layout-aware PDF text extraction (reading-order aware, unlike pdf-parse
+// which reads text runs in content-stream order and scrambles multi-column layouts
+// like resumes)
+import { LiteParse } from "@llamaindex/liteparse";
 import type { Logger } from "pino";
 import { stepLogger } from "../utils/logger.js";
 
@@ -28,24 +30,26 @@ async function loadPdfAsDocuments(
   originalName: string,
   log: Logger,
 ): Promise<Document[]> {
-  // create a PDF parser fed with the raw file bytes
-  const parser = new PDFParse({
-    data: new Uint8Array(await readFile(filePath)),
-  });
   try {
-    // extract text page by page
-    const { pages, total } = await parser.getText();
+    const parser = new LiteParse();
+    // parse() infers format from a file path's extension, but multer stores
+    // uploads under a random hex filename with no extension - pass raw bytes
+    // instead so the format is content-sniffed
+    // pages come back in visual reading order (top-to-bottom, left-to-right),
+    // with OCR fallback for scanned/image pages
+    const { pages } = await parser.parse(await readFile(filePath));
+    const total = pages.length;
     log.debug({ totalPages: total }, "pdf parsed");
 
     // turn each page's text into its own Document, tagging it with the page number
     // (0-indexed) and total page count so later citations can say "page X of Y"
     const docs = pages.map(
-      (page) =>
+      (page, index) =>
         new Document({
           pageContent: page.text,
           metadata: {
             source: originalName,
-            page: page.num - 1,
+            page: index,
             totalPages: total,
           },
         }),
@@ -63,9 +67,6 @@ async function loadPdfAsDocuments(
   } catch (err) {
     log.error({ err }, "failed to parse pdf");
     throw err;
-  } finally {
-    // release the parser's resources once we're done reading
-    await parser.destroy();
   }
 }
 
