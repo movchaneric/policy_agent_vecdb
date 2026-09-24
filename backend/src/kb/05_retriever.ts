@@ -1,5 +1,9 @@
 import type { MongoDBAtlasVectorSearch } from "@langchain/mongodb";
+import type { Logger } from "pino";
 import { getVectorStore } from "./03_vectorStore.js";
+import { stepLogger } from "../utils/logger.js";
+
+const defaultLogger = stepLogger("05_retriever");
 
 // step 5 -> querying the vector store for chunks relevant to a question
 type VectorStoreLike = Pick<
@@ -30,17 +34,26 @@ export async function retrieveChunks(
   query: string,
   options: RetrieveOptions = {},
   vectorStore?: VectorStoreLike,
+  logger: Logger = defaultLogger,
 ): Promise<RetrieveResult> {
   if (!namespace) {
+    logger.error("retrieve called without a namespace");
     throw new Error("Namespace is needed");
   }
 
   if (!query.trim()) {
+    logger.error("retrieve called without a query");
     throw new Error("Query is needed");
   }
 
-  const store = vectorStore ?? (await getVectorStore());
+  const start = performance.now();
   const k = options.k ?? 4;
+  logger.info(
+    { namespace, query, k, scoreThreshold: options.scoreThreshold },
+    "retrieving chunks",
+  );
+
+  const store = vectorStore ?? (await getVectorStore());
 
   // namespace must be indexed as a `type: "filter"` field on kb_vector_index
   // in Atlas for this preFilter to actually narrow results instead of erroring
@@ -56,6 +69,11 @@ export async function retrieveChunks(
   const bestScore = matches[0]?.[1] ?? 0;
   const confidence = Number(Math.max(0, Math.min(1, bestScore)).toFixed(2));
 
+  logger.debug(
+    { matchCount: matches.length, scores: matches.map(([, score]) => score) },
+    "raw similarity search results",
+  );
+
   const filtered =
     options.scoreThreshold != null
       ? matches.filter(([, score]) => score >= options.scoreThreshold!)
@@ -68,6 +86,17 @@ export async function retrieveChunks(
     chunkId: doc.metadata.chunkId as number,
     metadata: doc.metadata,
   }));
+
+  logger.info(
+    {
+      namespace,
+      matchCount: matches.length,
+      filteredCount: chunks.length,
+      confidence,
+      durationMs: Math.round(performance.now() - start),
+    },
+    "retrieval complete",
+  );
 
   return { chunks, confidence };
 }
