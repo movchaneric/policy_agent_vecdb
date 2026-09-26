@@ -1,0 +1,45 @@
+// step 2 -> the kb_search tool the agent calls to fetch documentation contexts
+
+import { z } from "zod";
+import { tool } from "langchain";
+import { retrieveChunks } from "../kb/05_retriever.js";
+
+const PREVIEW_LENGTH = 200;
+
+export const kbSearchTool = tool(
+  async ({ question, namespace }) => {
+    const { chunks, confidence } = await retrieveChunks(
+      namespace ?? "default",
+      question,
+    );
+
+    console.log("kbSearchTool chunks: ", chunks);
+
+    // chunkId is stringified to match the "chunkId": string shape in the
+    // agent's system prompt (01_policy.ts)
+    const contexts = chunks.map((chunk) => ({
+      source: chunk.source,
+      chunkId: String(chunk.chunkId),
+      preview: chunk.text.slice(0, PREVIEW_LENGTH),
+      text: chunk.text,
+      score: chunk.score,
+    }));
+
+    return JSON.stringify({ contexts, confidence });
+  },
+  {
+    name: "kb_search",
+    description:
+      "Search the knowledge base for documentation chunks relevant to a question. Returns contexts (source, chunkId, preview, text, score) and an overall confidence between 0 and 1.",
+    schema: z.object({
+      question: z
+        .string()
+        .min(1)
+        .describe("Users question or a follow up, must be answered from KB"),
+      namespace: z
+        .string()
+        .optional()
+        .describe('KB namespace to query, defaults to "default"'),
+    }),
+  },
+);
