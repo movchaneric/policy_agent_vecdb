@@ -21,7 +21,6 @@ kdRouter.post("/upload", upload.single("file"), async (req, res) => {
   }
 
   const { path, mimetype, originalname } = req.file;
-  const namespace = (req.body.namespace as string | undefined) ?? "default";
 
   try {
     // Step 1 -> load the uploaded file into Documents (per-page for PDFs, whole-file for text/markdown)
@@ -34,8 +33,8 @@ kdRouter.post("/upload", upload.single("file"), async (req, res) => {
     // Step 2 -> split into ~1000-char overlapping chunks, each stamped with a chunkId
     const chunks = await splitDocuments(rawDocs);
 
-    // Step 3 -> embed the chunks and upsert them into the Atlas vector store under this namespace
-    const summary = await ingestDocuments(namespace, chunks);
+    // Step 3 -> embed the chunks and upsert them into the Atlas vector store
+    const summary = await ingestDocuments(chunks);
 
     res.status(201).json(summary);
   } catch (err) {

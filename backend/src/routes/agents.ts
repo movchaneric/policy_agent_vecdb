@@ -13,7 +13,6 @@ const chatRequestSchema = z.object({
       }),
     )
     .min(1),
-  namespace: z.string().min(1).optional(),
 });
 
 agentsRouter.post("/chat", async (req, res) => {
@@ -21,16 +20,15 @@ agentsRouter.post("/chat", async (req, res) => {
   if (!parsed.success) {
     res.status(400).json({
       ok: false,
-      error:
-        "messages must be a non-empty array of { role, content }, and namespace (if provided) must be a non-empty string",
+      error: "messages must be a non-empty array of { role, content }",
     });
     return;
   }
 
-  const { messages, namespace } = parsed.data;
+  const { messages } = parsed.data;
 
   try {
-    const response = await runAgent(messages, namespace);
+    const response = await runAgent(messages);
     res.status(200).json(response);
   } catch (err) {
     console.error(err);

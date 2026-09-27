@@ -7,10 +7,10 @@ import { retrieveChunks } from "../kb/05_retriever.js";
 const PREVIEW_LENGTH = 200;
 const MIN_RELEVANCE_SCORE = 0.5;
 
-export function createKbSearchTool(namespace: string = "default") {
+export function createKbSearchTool() {
   return tool(
     async ({ question }) => {
-      const { chunks, confidence } = await retrieveChunks(namespace, question, {
+      const { chunks, confidence } = await retrieveChunks(question, {
         scoreThreshold: MIN_RELEVANCE_SCORE,
       });
 

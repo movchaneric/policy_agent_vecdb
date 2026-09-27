@@ -4,25 +4,16 @@ import { getVectorStore } from "./03_vectorStore.js";
 // step 4 -> writing split chunks into the Atlas vector store
 export interface IngestSummary {
   ok: boolean;
-  namespace: string;
   totalChunks: number;
   sources: string[];
 }
 
 // each stored doc becomes a flat KBChunk row (see ../types/kb.ts):
-// { text: pageContent, embedding: [...], namespace, source, chunkId, ...rest of chunk.metadata (page, totalPages, ...) }
-export async function ingestDocuments(
-  namespace: string,
-  chunks: Document[],
-): Promise<IngestSummary> {
-  if (!namespace) {
-    throw new Error("Namespace is needed");
-  }
-
+// { text: pageContent, embedding: [...], source, chunkId, ...rest of chunk.metadata (page, totalPages, ...) }
+export async function ingestDocuments(chunks: Document[]): Promise<IngestSummary> {
   if (!chunks.length) {
     return {
       ok: false,
-      namespace,
       totalChunks: 0,
       sources: [],
     };
@@ -38,14 +29,14 @@ export async function ingestDocuments(
 
     return new Document({
       pageContent: chunk.pageContent,
-      metadata: { ...chunk.metadata, namespace, source, chunkId },
+      metadata: { ...chunk.metadata, source, chunkId },
     });
   });
 
-  // deterministic id per (namespace, source, chunkId) so re-ingesting the same
-  // file upserts its chunks in place instead of duplicating them
+  // deterministic id per (source, chunkId) so re-ingesting the same file
+  // upserts its chunks in place instead of duplicating them
   const ids = docsWithMeta.map(
-    (doc) => `${namespace}::${doc.metadata.source}::${doc.metadata.chunkId}`,
+    (doc) => `${doc.metadata.source}::${doc.metadata.chunkId}`,
   );
 
   // Ingestion to vector db (embeds each chunk via OpenAI, then upserts into Mongo Atlas)
@@ -57,7 +48,6 @@ export async function ingestDocuments(
 
   return {
     ok: true,
-    namespace,
     totalChunks: docsWithMeta.length,
     sources,
   };

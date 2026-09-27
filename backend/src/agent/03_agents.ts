@@ -26,24 +26,24 @@ export interface ChatMessage {
 
 const NO_ANSWER = "I don't know based on the available documentation.";
 
-function createProductAgent(namespace?: string) {
+function createProductAgent() {
   return createAgent({
     model: chatModel,
-    tools: [createKbSearchTool(namespace)],
+    tools: [createKbSearchTool()],
     systemPrompt: AGENT_SYSTEM_PROMPT,
     responseFormat: providerStrategy(agentResponseSchema),
   });
 }
 
-export async function runAgent(
-  messages: ChatMessage[],
-  namespace?: string,
-): Promise<AgentResponse> {
-  const agent = createProductAgent(namespace);
+export async function runAgent(messages: ChatMessage[]): Promise<AgentResponse> {
+  const agent = createProductAgent();
 
-  const result = await agent.invoke({
-    messages: messages.map(({ role, content }) => [role, content] as const),
-  });
+  const result = await agent.invoke(
+    {
+      messages: messages.map(({ role, content }) => [role, content] as const),
+    },
+    { runName: "policy-agent", tags: ["policy-agent"] },
+  );
 
   return result.structuredResponse ?? { answer: NO_ANSWER, citations: [] };
 }

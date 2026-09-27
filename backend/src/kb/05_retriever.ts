@@ -26,15 +26,10 @@ export interface RetrieveResult {
 }
 
 export async function retrieveChunks(
-  namespace: string = "default",
   query: string,
   options: RetrieveOptions = {},
   vectorStore?: VectorStoreLike,
 ): Promise<RetrieveResult> {
-  if (!namespace) {
-    throw new Error("Namespace is needed");
-  }
-
   if (!query.trim()) {
     throw new Error("Query is needed");
   }
@@ -42,11 +37,7 @@ export async function retrieveChunks(
   const k = options.k ?? 4;
   const store = vectorStore ?? (await getVectorStore());
 
-  // namespace must be indexed as a `type: "filter"` field on kb_vector_index
-  // in Atlas for this preFilter to actually narrow results instead of erroring
-  const matches = await store.similaritySearchWithScore(query, k, {
-    preFilter: { namespace: { $eq: namespace } },
-  });
+  const matches = await store.similaritySearchWithScore(query, k);
 
   // best raw score before threshold pruning: whether or not any chunk clears
   // scoreThreshold, this says how close the nearest match was. Clamped to
