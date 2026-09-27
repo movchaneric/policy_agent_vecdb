@@ -1,9 +1,5 @@
 import { Document } from "@langchain/core/documents";
 import { getVectorStore } from "./03_vectorStore.js";
-import type { Logger } from "pino";
-import { stepLogger } from "../utils/logger.js";
-
-const defaultLogger = stepLogger("04_ingestor");
 
 // step 4 -> writing split chunks into the Atlas vector store
 export interface IngestSummary {
@@ -18,17 +14,12 @@ export interface IngestSummary {
 export async function ingestDocuments(
   namespace: string,
   chunks: Document[],
-  logger: Logger = defaultLogger,
 ): Promise<IngestSummary> {
   if (!namespace) {
-    logger.error("ingest called without a namespace");
     throw new Error("Namespace is needed");
   }
 
-  logger.info({ namespace, inputChunkCount: chunks.length }, "ingesting chunks");
-
   if (!chunks.length) {
-    logger.warn({ namespace }, "no chunks to ingest, skipping");
     return {
       ok: false,
       namespace,
@@ -57,35 +48,11 @@ export async function ingestDocuments(
     (doc) => `${namespace}::${doc.metadata.source}::${doc.metadata.chunkId}`,
   );
 
-  logger.debug(
-    { idPreview: ids.slice(0, 3), idCount: ids.length },
-    "computed deterministic chunk ids",
-  );
-
-  const start = performance.now();
-  try {
-    // Ingestion to vector db (embeds each chunk via OpenAI, then upserts into Mongo Atlas)
-    await vectorStore.addDocuments(docsWithMeta, { ids });
-  } catch (err) {
-    logger.error(
-      { err, namespace, chunkCount: docsWithMeta.length },
-      "embedding/upsert failed",
-    );
-    throw err;
-  }
+  // Ingestion to vector db (embeds each chunk via OpenAI, then upserts into Mongo Atlas)
+  await vectorStore.addDocuments(docsWithMeta, { ids });
 
   const sources = Array.from(
     new Set(docsWithMeta.map((doc) => doc.metadata.source as string)),
-  );
-
-  logger.info(
-    {
-      namespace,
-      totalChunks: docsWithMeta.length,
-      sources,
-      durationMs: Math.round(performance.now() - start),
-    },
-    "chunks embedded and upserted",
   );
 
   return {

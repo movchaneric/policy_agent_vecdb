@@ -1,4 +1,4 @@
-import { readFile, stat } from "fs/promises";
+import { readFile } from "fs/promises";
 // Document lives in @langchain/core, importing it from there (rather than the top-level
 // "langchain" package) avoids pulling in the whole framework just for this one class
 import { Document } from "@langchain/core/documents";
@@ -8,10 +8,6 @@ import { TextLoader } from "@langchain/classic/document_loaders/fs/text";
 // which reads text runs in content-stream order and scrambles multi-column layouts
 // like resumes)
 import { LiteParse } from "@llamaindex/liteparse";
-import type { Logger } from "pino";
-import { stepLogger } from "../utils/logger.js";
-
-const defaultLogger = stepLogger("01_loaders");
 
 // step 1 -> loading raw file as a document structure
 interface LoadFileArgs {
@@ -28,58 +24,35 @@ function getExtension(fileName: string): string {
 async function loadPdfAsDocuments(
   filePath: string,
   originalName: string,
-  log: Logger,
 ): Promise<Document[]> {
-  try {
-    const parser = new LiteParse();
-    // parse() infers format from a file path's extension, but multer stores
-    // uploads under a random hex filename with no extension - pass raw bytes
-    // instead so the format is content-sniffed
-    // pages come back in visual reading order (top-to-bottom, left-to-right),
-    // with OCR fallback for scanned/image pages
-    const { pages } = await parser.parse(await readFile(filePath));
-    const total = pages.length;
-    log.debug({ totalPages: total }, "pdf parsed");
+  const parser = new LiteParse();
+  // parse() infers format from a file path's extension, but multer stores
+  // uploads under a random hex filename with no extension - pass raw bytes
+  // instead so the format is content-sniffed
+  // pages come back in visual reading order (top-to-bottom, left-to-right),
+  // with OCR fallback for scanned/image pages
+  const { pages } = await parser.parse(await readFile(filePath));
+  const total = pages.length;
 
-    // turn each page's text into its own Document, tagging it with the page number
-    // (0-indexed) and total page count so later citations can say "page X of Y"
-    const docs = pages.map(
-      (page, index) =>
-        new Document({
-          pageContent: page.text,
-          metadata: {
-            source: originalName,
-            page: index,
-            totalPages: total,
-          },
-        }),
-    );
-
-    log.debug(
-      {
-        pageCharCounts: docs.map((doc) => doc.pageContent.length),
-        firstPagePreview: docs[0]?.pageContent.slice(0, 200),
-      },
-      "pdf pages converted to documents",
-    );
-
-    return docs;
-  } catch (err) {
-    log.error({ err }, "failed to parse pdf");
-    throw err;
-  }
+  // turn each page's text into its own Document, tagging it with the page number
+  // (0-indexed) and total page count so later citations can say "page X of Y"
+  return pages.map(
+    (page, index) =>
+      new Document({
+        pageContent: page.text,
+        metadata: {
+          source: originalName,
+          page: index,
+          totalPages: total,
+        },
+      }),
+  );
 }
 
 export async function loadFileAsDocuments(
   args: LoadFileArgs,
-  logger: Logger = defaultLogger,
 ): Promise<Document[]> {
   const { filePath, mimeType, originalName } = args;
-  const start = performance.now();
-
-  const fileSize = await stat(filePath)
-    .then((s) => s.size)
-    .catch(() => undefined);
 
   const fileExtension = getExtension(originalName); // pdf, txt, md, etc
 
@@ -92,11 +65,6 @@ export async function loadFileAsDocuments(
 
   const isPDF =
     mimeType === "application/pdf" || fileExtension === "pdf";
-
-  logger.info(
-    { originalName, mimeType, fileExtension, fileSize, filePath },
-    "loading file",
-  );
 
   let docs: Document[];
 
@@ -113,26 +81,11 @@ export async function loadFileAsDocuments(
           metadata: { ...doc.metadata, source: originalName, mimeType },
         }),
     );
-    logger.debug(
-      { type: isMarkdown ? "markdown" : "text", charCount: docs[0]?.pageContent.length },
-      "loaded as single text document",
-    );
   } else if (isPDF) {
-    docs = await loadPdfAsDocuments(filePath, originalName, logger);
+    docs = await loadPdfAsDocuments(filePath, originalName);
   } else {
-    logger.error({ mimeType, fileExtension }, "unsupported file type");
     throw new Error(`Unsupported file type: ${mimeType}`);
   }
-
-  logger.info(
-    {
-      originalName,
-      documentCount: docs.length,
-      totalChars: docs.reduce((sum, d) => sum + d.pageContent.length, 0),
-      durationMs: Math.round(performance.now() - start),
-    },
-    "file loaded",
-  );
 
   return docs;
 }
