@@ -35,7 +35,7 @@ export const agent = createAgent({
   responseFormat: providerStrategy(agentResponseSchema),
 });
 
-export async function runProductAgent(
+export async function runAgent(
   messages: ChatMessage[],
 ): Promise<AgentResponse> {
   const result = await agent.invoke({
