@@ -13,6 +13,7 @@ const chatRequestSchema = z.object({
       }),
     )
     .min(1),
+  namespace: z.string().min(1).optional(),
 });
 
 agentsRouter.post("/chat", async (req, res) => {
@@ -20,18 +21,22 @@ agentsRouter.post("/chat", async (req, res) => {
   if (!parsed.success) {
     res.status(400).json({
       ok: false,
-      error: "messages must be a non-empty array of { role, content }",
+      error:
+        "messages must be a non-empty array of { role, content }, and namespace (if provided) must be a non-empty string",
     });
     return;
   }
 
-  const { messages } = parsed.data;
+  const { messages, namespace } = parsed.data;
 
   try {
-    const response = await runAgent(messages);
+    const response = await runAgent(messages, namespace);
     res.status(200).json(response);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Chat failed";
-    res.status(500).json({ ok: false, error: message });
+    console.error(err);
+    res.status(500).json({
+      ok: false,
+      error: "Something went wrong processing your chat request.",
+    });
   }
 });

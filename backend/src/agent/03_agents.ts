@@ -3,7 +3,7 @@
 import { createAgent, providerStrategy } from "langchain";
 import { z } from "zod";
 import { chatModel } from "../utils/openai.js";
-import { kbSearchTool } from "./02_tools.js";
+import { createKbSearchTool } from "./02_tools.js";
 import { AGENT_SYSTEM_PROMPT } from "./01_policy.js";
 
 const agentResponseSchema = z.object({
@@ -26,18 +26,21 @@ export interface ChatMessage {
 
 const NO_ANSWER = "I don't know based on the available documentation.";
 
-export const agentTools = [kbSearchTool];
-
-export const agent = createAgent({
-  model: chatModel,
-  tools: agentTools,
-  systemPrompt: AGENT_SYSTEM_PROMPT,
-  responseFormat: providerStrategy(agentResponseSchema),
-});
+function createProductAgent(namespace?: string) {
+  return createAgent({
+    model: chatModel,
+    tools: [createKbSearchTool(namespace)],
+    systemPrompt: AGENT_SYSTEM_PROMPT,
+    responseFormat: providerStrategy(agentResponseSchema),
+  });
+}
 
 export async function runAgent(
   messages: ChatMessage[],
+  namespace?: string,
 ): Promise<AgentResponse> {
+  const agent = createProductAgent(namespace);
+
   const result = await agent.invoke({
     messages: messages.map(({ role, content }) => [role, content] as const),
   });
