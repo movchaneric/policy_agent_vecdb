@@ -17,6 +17,12 @@ Import conventions established in this codebase — follow them for new files:
 - Import from the most specific `@langchain/*` subpackage (e.g. `@langchain/core/documents`, `@langchain/textsplitters`) rather than the top-level `langchain` package, to avoid pulling in the whole framework
 - Default to no comments; add one only when it captures non-obvious rationale (a workaround, a subtle invariant), not what the code already says
 
+## Backend: agent (`backend/src/agent/`)
+
+Same `NN_name.ts` step convention (`01_policy.ts`, `02_tools.ts`, `03_agents.ts`, `04_memory.ts`). Step 4 is conversation memory: a `MongoDBSaver` checkpointer keyed by `thread_id` plus `summarizationMiddleware` (summarizes past ~4000 tokens, keeps the last 10 messages). The agent is built once at module level with both.
+
+Chat contract, `POST /api/v1/agents/chat`: request `{ threadId?, message }`, response `{ threadId, answer, citations }`. The server generates `threadId` (nanoid) when omitted; the client sends only the new message and the checkpointer holds the history.
+
 ## Required environment variables (backend)
 
 Validated by a zod schema in `backend/src/utils/env.ts` — fails fast with `process.exit(1)` if missing:
@@ -24,7 +30,8 @@ Validated by a zod schema in `backend/src/utils/env.ts` — fails fast with `pro
 
 ## Known gaps / WIP state
 
-- `backend/src/index.ts` is currently empty — no Express server is wired up yet, despite express/cors/multer being installed.
+- Memory lives in the `checkpoints` / `checkpoint_writes` collections and expires after 2 days idle (sliding TTL). Changing `MEMORY_TTL_SECONDS` later makes `checkpointer.setup()` report an index conflict, and startup exits 1 until the old TTL index is dropped.
+- An unknown `threadId` silently starts a fresh conversation (no 404). There is no auth or thread ownership, so anyone who knows a `threadId` can continue that thread.
 - The Mongo Atlas Vector Search index (`kb_vector_index`, referenced in `03_vectorStore.ts`) must be created manually in the Atlas UI/CLI — no code path creates it.
 - No ESLint/Prettier/Biome config anywhere in the repo.
 - No CI configured.

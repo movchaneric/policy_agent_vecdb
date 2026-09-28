@@ -4,7 +4,7 @@ import { env } from "./env.js";
 let client: MongoClient | undefined;
 let db: Db | undefined;
 
-async function getMongoClient(): Promise<MongoClient> {
+export async function getMongoClient(): Promise<MongoClient> {
   if (client) return client;
 
   client = new MongoClient(env.MONGODB_ATLAS_URI);
