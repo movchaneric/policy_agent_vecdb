@@ -1,9 +1,5 @@
 import type { MongoDBAtlasVectorSearch } from "@langchain/mongodb";
-import type { Logger } from "pino";
 import { getVectorStore } from "./03_vectorStore.js";
-import { stepLogger } from "../utils/logger.js";
-
-const defaultLogger = stepLogger("05_retriever");
 
 // step 5 -> querying the vector store for chunks relevant to a question
 type VectorStoreLike = Pick<
@@ -30,36 +26,18 @@ export interface RetrieveResult {
 }
 
 export async function retrieveChunks(
-  namespace: string = "default",
   query: string,
   options: RetrieveOptions = {},
   vectorStore?: VectorStoreLike,
-  logger: Logger = defaultLogger,
 ): Promise<RetrieveResult> {
-  if (!namespace) {
-    logger.error("retrieve called without a namespace");
-    throw new Error("Namespace is needed");
-  }
-
   if (!query.trim()) {
-    logger.error("retrieve called without a query");
     throw new Error("Query is needed");
   }
 
-  const start = performance.now();
   const k = options.k ?? 4;
-  logger.info(
-    { namespace, query, k, scoreThreshold: options.scoreThreshold },
-    "retrieving chunks",
-  );
-
   const store = vectorStore ?? (await getVectorStore());
 
-  // namespace must be indexed as a `type: "filter"` field on kb_vector_index
-  // in Atlas for this preFilter to actually narrow results instead of erroring
-  const matches = await store.similaritySearchWithScore(query, k, {
-    preFilter: { namespace: { $eq: namespace } },
-  });
+  const matches = await store.similaritySearchWithScore(query, k);
 
   // best raw score before threshold pruning: whether or not any chunk clears
   // scoreThreshold, this says how close the nearest match was. Clamped to
@@ -68,11 +46,6 @@ export async function retrieveChunks(
   // since that's set manually in Atlas and isn't visible from this code
   const bestScore = matches[0]?.[1] ?? 0;
   const confidence = Number(Math.max(0, Math.min(1, bestScore)).toFixed(2));
-
-  logger.debug(
-    { matchCount: matches.length, scores: matches.map(([, score]) => score) },
-    "raw similarity search results",
-  );
 
   const filtered =
     options.scoreThreshold != null
@@ -86,17 +59,6 @@ export async function retrieveChunks(
     chunkId: doc.metadata.chunkId as number,
     metadata: doc.metadata,
   }));
-
-  logger.info(
-    {
-      namespace,
-      matchCount: matches.length,
-      filteredCount: chunks.length,
-      confidence,
-      durationMs: Math.round(performance.now() - start),
-    },
-    "retrieval complete",
-  );
 
   return { chunks, confidence };
 }

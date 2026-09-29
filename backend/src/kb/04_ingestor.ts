@@ -1,37 +1,19 @@
 import { Document } from "@langchain/core/documents";
 import { getVectorStore } from "./03_vectorStore.js";
-import type { Logger } from "pino";
-import { stepLogger } from "../utils/logger.js";
-
-const defaultLogger = stepLogger("04_ingestor");
 
 // step 4 -> writing split chunks into the Atlas vector store
 export interface IngestSummary {
   ok: boolean;
-  namespace: string;
   totalChunks: number;
   sources: string[];
 }
 
 // each stored doc becomes a flat KBChunk row (see ../types/kb.ts):
-// { text: pageContent, embedding: [...], namespace, source, chunkId, ...rest of chunk.metadata (page, totalPages, ...) }
-export async function ingestDocuments(
-  namespace: string,
-  chunks: Document[],
-  logger: Logger = defaultLogger,
-): Promise<IngestSummary> {
-  if (!namespace) {
-    logger.error("ingest called without a namespace");
-    throw new Error("Namespace is needed");
-  }
-
-  logger.info({ namespace, inputChunkCount: chunks.length }, "ingesting chunks");
-
+// { text: pageContent, embedding: [...], source, chunkId, ...rest of chunk.metadata (page, totalPages, ...) }
+export async function ingestDocuments(chunks: Document[]): Promise<IngestSummary> {
   if (!chunks.length) {
-    logger.warn({ namespace }, "no chunks to ingest, skipping");
     return {
       ok: false,
-      namespace,
       totalChunks: 0,
       sources: [],
     };
@@ -47,50 +29,25 @@ export async function ingestDocuments(
 
     return new Document({
       pageContent: chunk.pageContent,
-      metadata: { ...chunk.metadata, namespace, source, chunkId },
+      metadata: { ...chunk.metadata, source, chunkId },
     });
   });
 
-  // deterministic id per (namespace, source, chunkId) so re-ingesting the same
-  // file upserts its chunks in place instead of duplicating them
+  // deterministic id per (source, chunkId) so re-ingesting the same file
+  // upserts its chunks in place instead of duplicating them
   const ids = docsWithMeta.map(
-    (doc) => `${namespace}::${doc.metadata.source}::${doc.metadata.chunkId}`,
+    (doc) => `${doc.metadata.source}::${doc.metadata.chunkId}`,
   );
 
-  logger.debug(
-    { idPreview: ids.slice(0, 3), idCount: ids.length },
-    "computed deterministic chunk ids",
-  );
-
-  const start = performance.now();
-  try {
-    // Ingestion to vector db (embeds each chunk via OpenAI, then upserts into Mongo Atlas)
-    await vectorStore.addDocuments(docsWithMeta, { ids });
-  } catch (err) {
-    logger.error(
-      { err, namespace, chunkCount: docsWithMeta.length },
-      "embedding/upsert failed",
-    );
-    throw err;
-  }
+  // Ingestion to vector db (embeds each chunk via OpenAI, then upserts into Mongo Atlas)
+  await vectorStore.addDocuments(docsWithMeta, { ids });
 
   const sources = Array.from(
     new Set(docsWithMeta.map((doc) => doc.metadata.source as string)),
   );
 
-  logger.info(
-    {
-      namespace,
-      totalChunks: docsWithMeta.length,
-      sources,
-      durationMs: Math.round(performance.now() - start),
-    },
-    "chunks embedded and upserted",
-  );
-
   return {
     ok: true,
-    namespace,
     totalChunks: docsWithMeta.length,
     sources,
   };

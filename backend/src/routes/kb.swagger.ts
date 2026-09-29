@@ -16,10 +16,6 @@
  *                 type: string
  *                 format: binary
  *                 description: PDF, text, or markdown file (max 10mb)
- *               namespace:
- *                 type: string
- *                 default: default
- *                 description: Knowledge base namespace to ingest the chunks into
  *     responses:
  *       201:
  *         description: File chunked and upserted into the vector store
@@ -30,8 +26,6 @@
  *               properties:
  *                 ok:
  *                   type: boolean
- *                 namespace:
- *                   type: string
  *                 totalChunks:
  *                   type: integer
  *                 sources:
