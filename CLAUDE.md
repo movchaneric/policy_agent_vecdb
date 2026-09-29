@@ -21,6 +21,10 @@ Import conventions established in this codebase — follow them for new files:
 
 Same `NN_name.ts` step convention (`01_policy.ts`, `02_tools.ts`, `03_agents.ts`, `04_memory.ts`). Step 4 is conversation memory: a `MongoDBSaver` checkpointer keyed by `thread_id` plus `summarizationMiddleware` (summarizes past ~4000 tokens, keeps the last 10 messages). The agent is built once at module level with both.
 
+A single tool-calling agent decides per message whether to call `kb_search`, per its two-mode system prompt (`AGENT_SYSTEM_PROMPT` in `01_policy.ts`): **KB mode** for anything the knowledge base could answer (product docs, pricing, policies, or a specific person/company/document), always calling `kb_search` and answering only from its contexts, defaulting to KB mode when unsure; **general mode** for chit-chat, general knowledge, and questions about the conversation itself, answered from history with no tool call and `citations: []`. This replaced an earlier prompt that said to use ONLY the documentation with no general mode, which made the agent refuse questions the checkpointer's own history could already answer (e.g. "what is my name?"). `kb_search` (`02_tools.ts`) retrieves the top 8 chunks (`RETRIEVE_TOP_K`) above `MIN_RELEVANCE_SCORE = 0.5` — a KB with more than one similar document (e.g. two CVs) needs more than the top 4, or one document's chunks can crowd out another's.
+
+A LangGraph router/workflow rewrite of this agent (explicit `kb`/`general` routing nodes instead of a single prompt) was implemented and then reverted — see `git log --oneline -- backend/src/agent` for that commit and its revert. `agent-router-plan.md` documents that abandoned design for reference; it is not the current implementation.
+
 Chat contract, `POST /api/v1/agents/chat`: request `{ threadId?, message }`, response `{ threadId, answer, citations }`. The server generates `threadId` (nanoid) when omitted; the client sends only the new message and the checkpointer holds the history.
 
 ## Required environment variables (backend)

@@ -6,11 +6,15 @@ import { retrieveChunks } from "../kb/05_retriever.js";
 
 const PREVIEW_LENGTH = 200;
 const MIN_RELEVANCE_SCORE = 0.5;
+// a KB with several similar documents (e.g. more than one CV) needs more than the
+// top 4 chunks, or one document's chunks can crowd out another's
+const RETRIEVE_TOP_K = 8;
 
 export function createKbSearchTool() {
   return tool(
     async ({ question }) => {
       const { chunks, confidence } = await retrieveChunks(question, {
+        k: RETRIEVE_TOP_K,
         scoreThreshold: MIN_RELEVANCE_SCORE,
       });
 
