@@ -8,9 +8,9 @@ import { agentsRouter } from "../../src/routes/agents.js";
 vi.mock("../../src/agent/03_agents.js", () => ({ runAgent: vi.fn() }));
 
 const runAgentMock = vi.mocked(runAgent);
-const agentResponse = { answer: "Sam", citations: [], route: "general" as const };
+const agentResponse = { answer: "Sam", citations: [] };
 
-type ChatBody = { threadId: string; answer: string; route: string };
+type ChatBody = { threadId: string; answer: string };
 
 let server: Server;
 let baseUrl: string;
@@ -57,7 +57,6 @@ describe("POST /chat", () => {
     expect(body.threadId).toEqual(expect.any(String));
     expect(body.threadId.length).toBeGreaterThan(0);
     expect(body.answer).toBe("Sam");
-    expect(body.route).toBe("general");
     expect(runAgentMock).toHaveBeenCalledWith({
       threadId: body.threadId,
       message: "My name is Sam",

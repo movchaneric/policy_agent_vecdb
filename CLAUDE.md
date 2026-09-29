@@ -19,21 +19,9 @@ Import conventions established in this codebase — follow them for new files:
 
 ## Backend: agent (`backend/src/agent/`)
 
-Same `NN_name.ts` step convention (`01_policy.ts` prompts + `NO_ANSWER`, `02_nodes.ts` graph nodes and edge functions, `03_agents.ts` state + graph + `runAgent`, `04_memory.ts` checkpointer). The agent is a LangGraph `StateGraph` compiled once at module level with a `MongoDBSaver` checkpointer keyed by `thread_id`:
+Same `NN_name.ts` step convention (`01_policy.ts`, `02_tools.ts`, `03_agents.ts`, `04_memory.ts`). Step 4 is conversation memory: a `MongoDBSaver` checkpointer keyed by `thread_id` plus `summarizationMiddleware` (summarizes past ~4000 tokens, keeps the last 10 messages). The agent is built once at module level with both.
 
-```
-START → summarize → router ─┬─ general → general_answer → END
-                            └─ kb → retrieve ─┬─ chunks found → kb_answer → END
-                                      ▲       ├─ none, attempts < 3 → rewrite_query ─┘
-                                              └─ none, attempts = 3 → no_answer → END
-```
-
-- `router` is a structured-output classifier (`kb` | `general`). It defaults to `kb` when unsure, on error, and on schema failure; `general` is only for chit-chat, general knowledge, and questions about the conversation itself. Both paths share one `messages` history.
-- The KB path always retrieves (`retrieveChunks`, `MIN_RELEVANCE_SCORE = 0.5`). An empty result triggers an LLM query rewrite, up to 3 searches total, then the fixed `NO_ANSWER` string with `route: "kb"`. There is no fallback to a general answer for KB-routed questions.
-- `summarize` runs first each turn: past ~4000 tokens it replaces all but the last 10 messages with one summary message. It also resets the per-turn fields (`queries`, `contexts`, `answer`, `citations`), which the checkpointer would otherwise carry into the next turn.
-- Each LLM call passes a `runName` (`route`, `kb_answer`, ...). The Phoenix instrumentation names the child LLM span after the model, not the `runName`, so the faithfulness eval finds KB answers by their `<contexts>` block instead.
-
-Chat contract, `POST /api/v1/agents/chat`: request `{ threadId?, message }`, response `{ threadId, answer, citations, route }` where `route` is `"kb"` or `"general"` (general answers return `citations: []`). The server generates `threadId` (nanoid) when omitted; the client sends only the new message and the checkpointer holds the history.
+Chat contract, `POST /api/v1/agents/chat`: request `{ threadId?, message }`, response `{ threadId, answer, citations }`. The server generates `threadId` (nanoid) when omitted; the client sends only the new message and the checkpointer holds the history.
 
 ## Required environment variables (backend)
 

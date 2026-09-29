@@ -1,66 +1,35 @@
-// step 3 -> the graph state, the graph that routes and answers each message, and runAgent
+// step 3 -> the agent that answers questions by calling kb_search
 
-import { Annotation, END, MessagesAnnotation, START, StateGraph } from "@langchain/langgraph";
-import type { RetrievedChunk } from "../kb/05_retriever.js";
-import { NO_ANSWER } from "./01_policy.js";
-import {
-  afterRetrieve,
-  generalAnswerNode,
-  kbAnswerNode,
-  noAnswerNode,
-  retrieveNode,
-  rewriteQueryNode,
-  routeNode,
-  selectPath,
-  summarizeNode,
-} from "./02_nodes.js";
-import { checkpointer } from "./04_memory.js";
+import { createAgent, providerStrategy } from "langchain";
+import { z } from "zod";
+import { chatModel } from "../utils/openai.js";
+import { createKbSearchTool } from "./02_tools.js";
+import { AGENT_SYSTEM_PROMPT } from "./01_policy.js";
+import { checkpointer, memoryMiddleware } from "./04_memory.js";
 
-export interface Citation {
-  source: string;
-  chunkId: string;
-  preview: string;
-}
-
-export type Route = "kb" | "general";
-
-export interface AgentResponse {
-  answer: string;
-  citations: Citation[];
-  route: Route;
-}
-
-const lastValue = <T>(initial: () => T) =>
-  Annotation<T>({ reducer: (_, next) => next, default: initial });
-
-const GraphAnnotation = Annotation.Root({
-  ...MessagesAnnotation.spec,
-  route: lastValue<Route>(() => "kb"),
-  queries: lastValue<string[]>(() => []),
-  contexts: lastValue<RetrievedChunk[]>(() => []),
-  answer: lastValue<string>(() => ""),
-  citations: lastValue<Citation[]>(() => []),
+const agentResponseSchema = z.object({
+  answer: z.string(),
+  citations: z.array(
+    z.object({
+      source: z.string(),
+      chunkId: z.string(),
+      preview: z.string(),
+    }),
+  ),
 });
 
-export type GraphState = typeof GraphAnnotation.State;
+export type AgentResponse = z.infer<typeof agentResponseSchema>;
 
-const graph = new StateGraph(GraphAnnotation)
-  .addNode("summarize", summarizeNode)
-  .addNode("router", routeNode)
-  .addNode("retrieve", retrieveNode)
-  .addNode("rewrite_query", rewriteQueryNode)
-  .addNode("kb_answer", kbAnswerNode)
-  .addNode("no_answer", noAnswerNode)
-  .addNode("general_answer", generalAnswerNode)
-  .addEdge(START, "summarize")
-  .addEdge("summarize", "router")
-  .addConditionalEdges("router", selectPath, ["general_answer", "retrieve"])
-  .addConditionalEdges("retrieve", afterRetrieve, ["kb_answer", "rewrite_query", "no_answer"])
-  .addEdge("rewrite_query", "retrieve")
-  .addEdge("kb_answer", END)
-  .addEdge("no_answer", END)
-  .addEdge("general_answer", END)
-  .compile({ checkpointer });
+const NO_ANSWER = "I don't know based on the available documentation.";
+
+const agent = createAgent({
+  model: chatModel,
+  tools: [createKbSearchTool()],
+  systemPrompt: AGENT_SYSTEM_PROMPT,
+  responseFormat: providerStrategy(agentResponseSchema),
+  checkpointer,
+  middleware: [memoryMiddleware],
+});
 
 export async function runAgent({
   threadId,
@@ -69,7 +38,7 @@ export async function runAgent({
   threadId: string;
   message: string;
 }): Promise<AgentResponse> {
-  const result = await graph.invoke(
+  const result = await agent.invoke(
     { messages: [["user", message]] },
     {
       configurable: { thread_id: threadId },
@@ -78,9 +47,5 @@ export async function runAgent({
     },
   );
 
-  return {
-    answer: result.answer || NO_ANSWER,
-    citations: result.citations,
-    route: result.route,
-  };
+  return result.structuredResponse ?? { answer: NO_ANSWER, citations: [] };
 }

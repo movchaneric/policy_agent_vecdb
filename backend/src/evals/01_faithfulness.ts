@@ -23,29 +23,6 @@ function readInputMessages(attrs: Record<string, unknown>): FlatMessage[] {
   return messages;
 }
 
-function readContexts(messages: FlatMessage[]): string {
-  const system = messages.find((m) => m.role === "system")?.content ?? "";
-  return /<contexts>([\s\S]*?)<\/contexts>/.exec(system)?.[1].trim() ?? "";
-}
-
-// kb_answer uses structured output, so the answer is a field of a JSON payload
-// (message content or, with function-calling, a tool call's arguments)
-function readAnswer(attrs: Record<string, unknown>): string {
-  const raw =
-    attrs["llm.output_messages.0.message.content"] ||
-    attrs["llm.output_messages.0.message.tool_calls.0.tool_call.function.arguments"];
-  if (typeof raw !== "string") return "";
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (parsed && typeof parsed === "object" && "answer" in parsed && typeof parsed.answer === "string") {
-      return parsed.answer;
-    }
-  } catch {
-    // not JSON: fall through to the raw text
-  }
-  return raw;
-}
-
 async function main() {
   const { spans } = await getSpans({
     project: { projectName: PROJECT_NAME },
@@ -53,7 +30,18 @@ async function main() {
     limit: 200,
   });
 
-  // grounds the answer against ONLY the retrieved KB context, never the
+  // only the turn that produced the final answer has finish_reason "stop";
+  // the earlier tool-calling turn has no answer yet to judge
+  const finalAnswerSpans = spans.filter(
+    (span) => (span.attributes as Record<string, unknown>)["llm.finish_reason"] === "stop",
+  );
+
+  if (!finalAnswerSpans.length) {
+    console.log("No final-answer LLM spans found.");
+    return;
+  }
+
+  // grounds the answer against ONLY the retrieved kb_search context, never the
   // user's own phrasing -- a generic hallucination check treats the user's
   // message as evidence too, which misses a leading/false-premise question.
   // gpt-4o-mini reliably missed entity-identity mismatches (e.g. wrong name
@@ -63,17 +51,21 @@ async function main() {
 
   const annotations: Parameters<typeof logSpanAnnotations>[0]["spanAnnotations"] = [];
 
-  for (const span of spans) {
+  for (const span of finalAnswerSpans) {
     const attrs = span.attributes as Record<string, unknown>;
     const messages = readInputMessages(attrs);
 
-    // only the kb_answer call carries a <contexts> block; the router, rewrite,
-    // summarize and general calls have none, so they are skipped here
-    const context = readContexts(messages);
-    const answer = readAnswer(attrs);
-    if (!context || !answer) continue;
+    const question = messages.find((m) => m.role === "user")?.content ?? "";
+    const context = messages
+      .filter((m) => m.role === "tool")
+      .map((m) => m.content)
+      .join("\n");
+    const answer =
+      typeof attrs["llm.output_messages.0.message.content"] === "string"
+        ? (attrs["llm.output_messages.0.message.content"] as string)
+        : "";
 
-    const question = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
+    if (!context || !answer) continue;
 
     const result = await evaluator.evaluate({ input: question, context, output: answer });
     console.log(span.context.span_id, result.label, result.score, result.explanation);
