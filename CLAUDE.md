@@ -27,6 +27,10 @@ A LangGraph router/workflow rewrite of this agent (explicit `kb`/`general` routi
 
 Chat contract, `POST /api/v1/agents/chat`: request `{ threadId?, message }`, response `{ threadId, answer, citations }`. The server generates `threadId` (nanoid) when omitted; the client sends only the new message and the checkpointer holds the history.
 
+## Environments and releases
+
+`master` is dev: every merge auto-deploys to the dev environment. Production deploys by pushing a `vX.Y.Z` tag on a `master` commit (no prod or release branches). CI/CD is GitHub Actions in `.github/workflows/` (`ci.yml`, `deploy-dev.yml`, `release.yml`); backend runs on Render (`render.yaml`, built with `npm run build` / `npm start`), client on Cloudflare Workers. Setup steps and the env/secret matrix are in `DEPLOYMENT.md`.
+
 ## Required environment variables (backend)
 
 Validated by a zod schema in `backend/src/utils/env.ts` — fails fast with `process.exit(1)` if missing:
