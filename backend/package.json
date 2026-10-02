@@ -6,6 +6,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
     "evals": "tsx src/evals/01_faithfulness.ts",
     "test": "vitest run",
     "lint": "eslint ."

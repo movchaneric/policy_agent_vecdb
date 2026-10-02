@@ -1,0 +1,30 @@
+# Render Blueprint: one backend service per environment.
+# autoDeploy is off; GitHub Actions triggers deploys through each service's deploy hook.
+services:
+  - type: web
+    name: policy-agent-api-dev
+    runtime: node
+    plan: free
+    rootDir: backend
+    branch: master
+    autoDeploy: false
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    envVars:
+      - { key: OPENAI_API_KEY, sync: false }
+      - { key: MONGODB_ATLAS_URI, sync: false }
+      - { key: MONGODB_DB_NAME, value: agent_kb_dev }
+
+  - type: web
+    name: policy-agent-api-prod
+    runtime: node
+    plan: free
+    rootDir: backend
+    branch: master
+    autoDeploy: false
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    envVars:
+      - { key: OPENAI_API_KEY, sync: false }
+      - { key: MONGODB_ATLAS_URI, sync: false }
+      - { key: MONGODB_DB_NAME, value: agent_kb }
