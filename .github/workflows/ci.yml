@@ -25,6 +25,10 @@ jobs:
       - run: npm run lint
       - run: npx tsc --noEmit
       - run: npm test
+        env:
+          OPENAI_API_KEY: test
+          MONGODB_ATLAS_URI: mongodb://localhost:27017
+          MONGODB_DB_NAME: test
       - run: npm run build
 
   client:
