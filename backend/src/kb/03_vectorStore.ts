@@ -15,7 +15,10 @@ export async function getKbCollection(): Promise<MongoCollection> {
     collectionPromise = (async () => {
       const db = await getDb();
       return db.collection(KB_COLLECTION_NAME);
-    })();
+    })().catch((err) => {
+      collectionPromise = null;
+      throw err;
+    });
   }
 
   return collectionPromise;
@@ -33,7 +36,10 @@ export async function getVectorStore(): Promise<MongoDBAtlasVectorSearch> {
         textKey: "text",
         embeddingKey: "embedding",
       });
-    })();
+    })().catch((err) => {
+      vectorStorePromise = null;
+      throw err;
+    });
   }
 
   return vectorStorePromise;

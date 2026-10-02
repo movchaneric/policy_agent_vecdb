@@ -1,16 +1,20 @@
 import { MongoClient, type Db } from "mongodb";
 import { env } from "./env.js";
 
-let client: MongoClient | undefined;
+let clientPromise: Promise<MongoClient> | undefined;
 let db: Db | undefined;
 
-export async function getMongoClient(): Promise<MongoClient> {
-  if (client) return client;
+export function getMongoClient(): Promise<MongoClient> {
+  if (!clientPromise) {
+    const newClient = new MongoClient(env.MONGODB_ATLAS_URI);
+    clientPromise = newClient.connect().catch((err) => {
+      // don't cache a failed connect, or every later call re-throws it until restart
+      clientPromise = undefined;
+      throw err;
+    });
+  }
 
-  client = new MongoClient(env.MONGODB_ATLAS_URI);
-  await client.connect();
-
-  return client;
+  return clientPromise;
 }
 
 export async function getDb(): Promise<Db> {
@@ -24,7 +28,8 @@ export async function getDb(): Promise<Db> {
 }
 
 export async function closeDatabaseConnection(): Promise<void> {
-  await client?.close();
-  client = undefined;
+  const pending = clientPromise;
+  clientPromise = undefined;
   db = undefined;
+  await (await pending)?.close();
 }

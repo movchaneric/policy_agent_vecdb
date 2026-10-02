@@ -9,8 +9,16 @@ import { chatModel } from "../utils/openai.js";
 // Sliding: every checkpoint write refreshes upserted_at, so only idle threads expire.
 const MEMORY_TTL_SECONDS = 2 * 24 * 60 * 60;
 
+let mongoClient;
+try {
+  mongoClient = await getMongoClient();
+} catch (err) {
+  console.error("failed to connect to MongoDB for conversation memory:", err);
+  process.exit(1);
+}
+
 export const checkpointer = new MongoDBSaver({
-  client: await getMongoClient(),
+  client: mongoClient,
   dbName: env.MONGODB_DB_NAME,
   ttl: MEMORY_TTL_SECONDS,
 });

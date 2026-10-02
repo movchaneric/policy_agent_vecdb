@@ -1,7 +1,10 @@
 import { Router } from "express";
 import multer from "multer";
 import { unlink } from "fs/promises";
-import { loadFileAsDocuments } from "../kb/01_loaders.js";
+import {
+  loadFileAsDocuments,
+  UnsupportedFileTypeError,
+} from "../kb/01_loaders.js";
 import { splitDocuments } from "../kb/02_splitter.js";
 import { ingestDocuments } from "../kb/04_ingestor.js";
 
@@ -38,8 +41,16 @@ kdRouter.post("/upload", upload.single("file"), async (req, res) => {
 
     res.status(201).json(summary);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Upload failed";
-    res.status(500).json({ ok: false, error: message });
+    if (err instanceof UnsupportedFileTypeError) {
+      res.status(400).json({ ok: false, error: err.message });
+      return;
+    }
+
+    console.error(err);
+    res.status(500).json({
+      ok: false,
+      error: "Something went wrong ingesting the uploaded file.",
+    });
   } finally {
     await unlink(path).catch(() => undefined);
   }
