@@ -10,6 +10,8 @@ import { TextLoader } from "@langchain/classic/document_loaders/fs/text";
 import { LiteParse } from "@llamaindex/liteparse";
 
 // step 1 -> loading raw file as a document structure
+export class UnsupportedFileTypeError extends Error {}
+
 interface LoadFileArgs {
   filePath: string;
   mimeType: string;
@@ -84,7 +86,7 @@ export async function loadFileAsDocuments(
   } else if (isPDF) {
     docs = await loadPdfAsDocuments(filePath, originalName);
   } else {
-    throw new Error(`Unsupported file type: ${mimeType}`);
+    throw new UnsupportedFileTypeError(`Unsupported file type: ${mimeType}`);
   }
 
   return docs;
