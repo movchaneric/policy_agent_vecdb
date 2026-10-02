@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Two independent npm packages, not a monorepo (no workspace config, no root `package.json`):
 - `backend/` — Node/TypeScript, Express, LangChain, MongoDB Atlas Vector Search, OpenAI embeddings
-- `client/` — Next.js (App Router), Tailwind v4, shadcn/ui scaffolded (`components.json`) but not yet used — no `components/`/`hooks/` dirs exist yet
+- `client/` — Next.js (App Router), Tailwind v4, Claude-style chat UI (sidebar of conversations, markdown answers with expandable citations, knowledge-base upload dialog). Plain Tailwind components; `components.json` is scaffolded but no shadcn components are installed. Conversations are persisted in `localStorage` (`src/lib/store.ts`) because the backend exposes no history endpoint; the local conversation id is the backend `threadId`. Backend URL comes from `NEXT_PUBLIC_API_URL` (default `http://localhost:5000`; set `client/.env.local` to match the backend `PORT`)
 
 ## Backend: RAG ingestion pipeline (`backend/src/kb/`)
 
