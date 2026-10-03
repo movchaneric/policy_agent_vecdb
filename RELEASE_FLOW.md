@@ -6,6 +6,19 @@ One-time setup (Render, Atlas, Cloudflare, GitHub environments) is in `DEPLOYMEN
 feature branch -> PR to master -> merge -> DEV (auto) -> tag vX.Y.Z -> PROD
 ```
 
+## How the workflows are triggered
+
+The workflows run on GitHub's servers, not on your machine. What you do locally only triggers them.
+
+| Workflow | Triggered by | Result |
+|---|---|---|
+| `ci.yml` | opening or updating a PR to `master` | checks only, no deploy |
+| `deploy-dev.yml` | a merge to `master` (a push to `master`) | deploys to dev |
+| `release.yml` | pushing a `vX.Y.Z` tag | deploys to prod |
+
+- Pushing a branch or opening a PR does not deploy anything. Only merging to `master` does.
+- Nothing "moves" dev to prod. The tag points at a commit already on `master` (the same commit dev has), and `release.yml` rebuilds that commit from scratch with the prod `API_URL`, Worker and Render service. Prod does not reuse dev's build.
+
 ## 1. Local -> dev
 
 1. Branch from an up-to-date `master`:
